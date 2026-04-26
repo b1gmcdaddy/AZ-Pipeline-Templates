@@ -1,0 +1,53 @@
+name: Deploy Staging API
+
+on:
+  push:
+    branches: ["staging"]
+    paths:
+      - "<<API_DIR>>/**"
+
+  workflow_dispatch:
+
+env:
+  # Azure App Service name (ex: app-myapp-eastus-preprod-001)
+  AZURE_WEBAPP_NAME: "<<AZURE_WEBAPP_NAME>>"
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: <<API_DIR>>
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install dependencies
+        run: dotnet restore <<API_CSPROJ>>
+
+      - name: Build
+        run: dotnet build <<API_CSPROJ>> --configuration Release --no-restore
+
+      - name: Test
+        id: test
+        run: dotnet test <<API_CSPROJ>> --no-build --verbosity normal
+
+      - name: Publish
+        if: ${{ steps.test.outcome == 'success' }}
+        run: dotnet publish <<API_CSPROJ>> --configuration Release --output ./publish
+
+      - name: Deploy
+        if: ${{ steps.test.outcome == 'success' }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          # replace with the GitHub secret holding the staging publish profile XML
+          publish-profile: ${{ secrets.<<AZURE_WEBAPP_PUBLISH_PROFILE_SECRET>> }}
+          # replace with the API project dir
+          package: ./<<API_DIR>>/publish
