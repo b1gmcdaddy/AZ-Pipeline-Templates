@@ -1,0 +1,42 @@
+version: v0.1
+
+testId: sample-load-test
+
+displayName: Sample Load Test
+description: Simulates concurrent user traffic against the API to catch performance issues before they reach production
+
+testType: JMX
+testPlan: sample-test.jmx
+
+# parallel test engine instances for Azure Load Testing
+engineInstances: 10
+
+configurationFiles:
+  - test-data/customers.csv
+splitAllCSVs: true
+
+env:
+  - name: webapp
+    value: my-app.azurewebsites.net  
+
+secrets:
+  - name: appToken
+    value: https:/keyvault.vault.azure.net/secrets/api-token  
+
+keyVaultReferenceIdentity: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/{name}-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/load-test-identity
+
+# if any condition is true the test run fails, dpeloyment is blocked
+failureCriteria:
+  # average response time must be under 500ms
+  - avg(response_time_ms) > 500
+  # error rate must be under 5%
+  - percentage(error) > 5
+  # getProducts sampler must average below 300ms
+  - getProducts: avg(response_time_ms) > 300
+  # getCustomerDetails sampler latency must stay below 200ms
+  - getCustomerDetails: avg(latency) > 200
+
+# auto stop test if the error rate spikes above 80%
+autoStop:
+  errorPercentage: 80
+  timeWindow: 60
